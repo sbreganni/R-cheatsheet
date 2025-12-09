@@ -1,0 +1,185 @@
+---
+title: "Cheat Sheet: Tidyverse Basics (dplyr + tidyr)"
+output: md_document
+---
+
+# Key concepts
+
+- Tidyverse: cohesive set of packages with consistent grammar (dplyr, tidyr, ggplot2, readr, stringr, purrr, tibble, lubridate, rvest)
+- Tidy data (Wickham):
+  - Each variable = a column
+  - Each observation = a row
+  - Each observational unit = a table
+- Piping: data |> verb1() |> verb2() for left-to-right readable pipelines
+
+# Core dplyr verbs
+
+- filter(): subset rows by conditions
+- arrange(): sort rows
+- select(): choose/reorder columns
+- mutate(): add/transform columns
+- summarize(): collapse rows; use with group_by()
+- across(): apply function to multiple columns
+- slice_*(): subset by position, head/tail/random
+
+## Quick templates
+
+```r
+# Inspect
+glimpse(df)
+count(df, group_var, sort = TRUE)
+
+# Column selection
+df |> select(col1:col5, -exclude_col, starts_with("pre"), contains("pattern"))
+
+# Filter rows
+df |> filter(var == "x", between(num, 10, 20), !is.na(z))
+
+# Arrange
+df |> arrange(desc(score), group)
+
+# Mutate
+df |> mutate(rate = num/den, flag = if_else(rate > 0.5, "hi","lo"))
+
+# Summarize with groups
+df |> group_by(g1, g2) |>
+  summarize(n = n(),
+            mean_x = mean(x, na.rm = TRUE),
+            sd_x = sd(x, na.rm = TRUE),
+            .groups = "drop")
+
+# Multiple columns with across()
+df |>
+  mutate(across(where(is.character), str_to_lower)) |>
+  summarize(across(where(is.numeric), ~mean(.x, na.rm = TRUE)))
+```
+
+## Common joins
+
+```r
+# Left (keep all from x)
+left_join(x, y, by = "key")
+
+# Inner (intersection only)
+inner_join(x, y, by = "key")
+
+# Right, full
+right_join(x, y, by = "key")
+full_join(x, y, by = "key")
+
+# Semi (filter x by keys present in y); Anti (x keys NOT in y)
+semi_join(x, y, by = "key")
+anti_join(x, y, by = "key")
+```
+
+## Pitfalls and warnings
+
+- Inner joins drop unmatched rows → can silently reduce data
+- Ambiguous join columns (e.g., `year` meaning differs) → rename first or use explicit `by=c("key1"="key2")`
+- summarize() needs na.rm=TRUE for NA-heavy columns
+- across() + summarize() returns one row per group—remember `.groups="drop"` if needed
+- select() helpers operate on names, not data types, except `where()`
+
+# Core tidyr verbs
+
+- pivot_longer(): wide → long
+- pivot_wider(): long → wide
+- separate(), separate_wider_delim(), separate_wider_position()
+- unite(): combine columns into one
+- nest()/unnest(): list-columns (with tidyr/purrr)
+- fill(): fill down/up missing values
+- drop_na(): drop rows with NAs in specific columns
+
+## Quick templates
+
+```r
+# Long(er)
+wide |> pivot_longer(cols = -id,
+                     names_to = "variable",
+                     values_to = "value")
+
+# Wid(er)
+long |> pivot_wider(names_from = variable,
+                    values_from = value)
+
+# Separate and unite
+df |> separate(date, into = c("year","month","day"), sep = "-")
+df |> unite(date, c("year","month","day"), sep = "-")
+
+# Modern separate helpers
+df |> separate_wider_delim(col, delim = ";", names = c("a","b"))
+df |> separate_wider_position(col, c(a = 2, b = 3)) # widths
+
+# Missing handling
+df |> fill(group, .direction = "down")
+df |> drop_na(target_col)
+
+# Nest-unnest with grouped ops
+df |>
+  group_by(group) |>
+  nest() |>
+  mutate(result = map(data, ~summarize(.x, n=n(), m=mean(y, na.rm=TRUE)))) |>
+  select(-data) |>
+  unnest(result)
+```
+
+# Illustrative examples
+
+## Palmer penguins (select/filter/mutate/summarize)
+
+```r
+library(dplyr)
+library(palmerpenguins)
+
+penguins |>
+  filter(island == "Dream") |>
+  mutate(bmi = body_mass_g / flipper_length_mm) |>
+  group_by(species) |>
+  summarize(n=n(),
+            lightest = min(body_mass_g, na.rm = TRUE),
+            avg_bmi  = mean(bmi, na.rm = TRUE),
+            .groups="drop") |>
+  arrange(lightest)
+```
+
+## Pivoting example
+
+```r
+library(tidyr)
+
+stocks = tibble(
+  time = as.Date('2009-01-01') + 0:1,
+  X = rnorm(2), Y = rnorm(2), Z = rnorm(2)
+)
+
+tidy_stocks <- stocks |> pivot_longer(-time, names_to = "stock", values_to = "price")
+wider_stocks <- tidy_stocks |> pivot_wider(names_from = stock, values_from = price)
+```
+
+# Practical tasks and applications
+
+- Data cleaning: rename, reorder, select helpers, where()
+- Feature engineering: mutate with grouped stats (window functions), case_when()
+- Aggregation: group_by + summarize across numeric features
+- Reshaping for modeling/plotting: pivot_longer/wider, separate/unite
+- Joins for enrichment: join reference tables (lookup)
+
+# Reusable patterns
+
+```r
+# Conditional recode
+df |> mutate(cat = case_when(
+  x < 0 ~ "neg",
+  x == 0 ~ "zero",
+  TRUE ~ "pos"
+))
+
+# Top-N by group
+df |>
+  group_by(group) |>
+  slice_max(order_by = score, n = 3, with_ties = FALSE)
+
+# Distinct and counts
+df |> distinct(colA, colB)
+df |> count(col, sort = TRUE)
+```

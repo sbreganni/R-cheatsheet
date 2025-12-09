@@ -1,0 +1,120 @@
+---
+title: "Cheat Sheet: Web Scraping and APIs"
+output: md_document
+---
+
+# Scraping workflow (static pages)
+
+1. Inspect page (find stable anchors)
+2. Parse HTML with rvest
+3. Select nodes via XPath/CSS
+4. Extract text/attrs; clean
+5. Tidy and save
+6. Be polite: delay, identify, respect robots.txt
+
+## rvest templates
+
+```r
+library(rvest)
+doc <- read_html("https://en.wikipedia.org/wiki/List_of_women_philosophers")
+
+nodes <- html_elements(doc, xpath = "//h2[text()='Alphabetically']//following::li/a[1]")
+names <- html_text2(nodes)
+links <- html_attr(nodes, "href")
+
+# Tables
+tables <- html_table(doc, header = TRUE)
+df <- tables[[1]]
+```
+
+## Polite scraping
+
+```r
+ses <- session("https://example.com",
+               httr::add_headers(From = "your@email",
+                                 UserAgent = R.Version()$version.string))
+
+page <- session_read_html(ses)
+```
+
+## Cleaning examples
+
+```r
+library(dplyr); library(stringr)
+df_clean <- df |>
+  janitor::clean_names() |>
+  mutate(value = parse_number(value),
+         date = as.Date(date))
+```
+
+# Good practice
+
+- robots.txt: check rules and crawl-delay
+- Rate-limit: `Sys.sleep(runif(1, 1, 2))`
+- Cache HTML locally then parse
+- Avoid fragile absolute XPaths; anchor to headings/ids
+- Prefer official APIs when available
+
+# APIs: basics
+
+- Endpoint (URL), Method (GET/POST), Query params, Headers, Response (status, headers, body)
+- Auth: API keys/tokens via headers or query
+- Formats: JSON (common), XML
+
+## httr/jsonlite templates
+
+```r
+library(httr)
+library(jsonlite)
+
+# GET JSON
+res <- GET("http://ip-api.com/json/91.198.174.1")
+stop_for_status(res)
+data <- content(res, as = "text", encoding = "UTF-8") |> fromJSON()
+
+# Batch POST
+ips <- c("208.80.152.201", "91.198.174.192")
+res <- POST("http://ip-api.com/batch", body = toJSON(ips), encode = "json")
+fromJSON(content(res, as = "text"))
+
+# API key via env var
+my_key <- Sys.getenv("MY_API_KEY")
+url <- modify_url("https://api.nytimes.com/svc/mostpopular/v2/viewed/1.json",
+                  query = list(`api-key` = my_key))
+json <- fromJSON(url)
+```
+
+## Store and use keys safely
+
+```r
+# Session only
+Sys.setenv(MY_API_KEY = "abcdefghijklmnopqrstuvwxyz0123")
+my_key <- Sys.getenv("MY_API_KEY")
+
+# Better: ~/.Renviron permanent entry
+# MY_API_KEY=abcdefghijklmnopqrstuvwxyz0123
+```
+
+# Pitfalls and warnings
+
+- 429 Too Many Requests → backoff, cache
+- Pagination → iterate `page`/`offset`
+- Timeouts/network errors → retry with exponential backoff
+- Inconsistent JSON → `flatten=TRUE` in jsonlite, or map over nested lists
+- Non-UTF8 → set encoding
+- Authentication scopes/quotas → read docs; handle errors
+
+# Minimal examples
+
+```r
+# Wikipedia old revision (stable scraping target)
+doc <- read_html("https://en.wikipedia.org/w/index.php?title=List_of_human_spaceflights&oldid=778165808")
+tbl <- html_table(doc, header = TRUE)[[1]]
+```
+
+# Practical tasks
+
+- Scrape list and table pages (Wikipedia)
+- Extract news headlines (CSS classes)
+- Query IP geolocation; map with leaflet
+- Build simple API client wrappers (R functions + httr/jsonlite)

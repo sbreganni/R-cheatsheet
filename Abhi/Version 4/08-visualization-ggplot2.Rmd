@@ -1,0 +1,112 @@
+---
+title: "Cheat Sheet: Visualization with ggplot2"
+output: md_document
+---
+
+# Key concepts
+
+- Grammar of graphics: data + aesthetics + geoms (+ scales, facets, stats, coords, labels, themes)
+- Exploratory vs explanatory plots
+- Show comparisons, causality clues, multivariate structure; integrate evidence (Tufte principles)
+
+# Minimal ggplot template
+
+```r
+library(ggplot2)
+
+ggplot(data = df, aes(x = x, y = y, color = group)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE) +
+  scale_color_viridis_d() +
+  labs(x="X", y="Y", color="Group",
+       title="Title", subtitle="Subtitle", caption="Source") +
+  theme_minimal()
+```
+
+# Common geoms
+
+- Points: geom_point()
+- Lines: geom_line(), geom_smooth()
+- Bars: geom_col(), geom_bar()
+- Histograms/density: geom_histogram(), geom_density()
+- Box/violin: geom_boxplot(), geom_violin()
+- Ridgelines: ggridges::geom_ridgeline()
+- Facets: facet_wrap(vars(f), ncol=), facet_grid(rows=vars(r), cols=vars(c))
+
+# Examples
+
+## Scatter + regression + facets
+
+```r
+ggplot(mpg, aes(displ, hwy, color = drv)) +
+  geom_point(alpha = .6) +
+  geom_smooth(method = "lm", se = FALSE) +
+  facet_wrap(vars(drv), ncol = 1) +
+  scale_color_viridis_d() +
+  labs(x="Displacement", y="Highway MPG", color="Drive") +
+  theme_bw()
+```
+
+## Distributions
+
+```r
+# Histogram + density
+ggplot(penguins, aes(body_mass_g)) +
+  geom_histogram(bins = 30, fill = "#FF6666", color = "white") +
+  geom_density(color = "black") +
+  theme_minimal()
+
+# Box/violin by group
+ggplot(penguins, aes(species, body_mass_g)) +
+  geom_boxplot(fill = "#FF6666") +
+  geom_violin(fill = "#FF9999", alpha=.3)
+```
+
+## Bar charts
+
+```r
+df |> count(group) |>
+  ggplot(aes(x = reorder(group, n), y = n)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(x="Group", y="Count")
+```
+
+# Scales and axes
+
+- Position: default Cartesian; log scales via scale_x_log10(), scale_y_log10()
+- Colors:
+  - Qualitative (groups): scale_color_viridis_d(), scale_fill_brewer(palette="Set1")
+  - Sequential (values): scale_fill_viridis_c()
+- Avoid rainbow for ordered data; ensure colorblind-friendly palettes
+
+# Overplotting solutions
+
+- alpha transparency: `geom_point(alpha = 0.4)`
+- jitter: `geom_jitter(width=.2, height = 0, alpha=.5)`
+- 2D binning: `geom_bin2d()`, `geom_hex()`
+- small multiples: facets; keep consistent axes
+
+# Pitfalls and guidelines
+
+- Bar charts should include zero; for lines/scatter, zero not always needed
+- Avoid dual y-axes; consider normalization or small multiples
+- Label axes concisely; remove clutter; use legends only when needed
+- Proportional ink: area should represent value faithfully
+- Order categorical axes by meaningful statistic, not alphabetically
+
+# Templates for themes and labels
+
+```r
+p + labs(title="Meaningful title", subtitle="Key context",
+         x="Units", y="Units", caption="Source: ...") +
+    theme_minimal(base_size = 12) +
+    theme(legend.position = "bottom",
+          panel.grid.minor = element_blank())
+```
+
+# Practical tasks
+
+- Compare distributions across groups (box/violin/ridgeline)
+- Show relationships and trends (scatter + smooth; line per group)
+- Summarize model outputs (coef plots with modelsummary::modelplot)

@@ -1,0 +1,165 @@
+---
+title: "Cheat Sheet: Functions and purrr"
+output: md_document
+---
+
+# Key concepts
+
+- R is a functional language (first-class functions)
+- Write functions to avoid repetition (DRY)
+- purrr::map* family = iteration over lists/vectors with typed outputs
+- Anonymous functions: `\(x) x + 1`
+- Ellipsis `...` to pass arguments through
+- Defensive programming: check inputs, return informative errors/messages
+
+# Function patterns
+
+## Basic structure
+
+```r
+my_func <- function(arg1, arg2 = default, ...) {
+  # validate
+  stopifnot(is.numeric(arg1))
+  # compute
+  out <- arg1 + arg2
+  # return
+  return(out)
+}
+```
+
+## Type checks and messages
+
+```r
+mean_sd <- function(x){
+  if (!is.numeric(x)) return(NULL)
+  list(mean = mean(x, na.rm = TRUE),
+       sd   = sd(x, na.rm = TRUE))
+}
+```
+
+## Using `...` to forward arguments
+
+```r
+safe_mean <- function(x, ...) mean(x, ...)
+safe_mean(c(1, NA), na.rm = TRUE)
+```
+
+# purrr iteration
+
+## Map variants
+
+- map() → list
+- map_lgl(), map_int(), map_dbl(), map_chr() → atomic vectors
+- map_df()/list + bind_rows: data frames
+- map2(.x, .y, .f): iterate two inputs
+- pmap(): iterate many inputs via list of columns
+
+### Templates
+
+```r
+library(purrr)
+
+# Apply function to columns
+map_chr(df, ~class(.x))
+
+# Numeric columns only (w/ dplyr)
+df |>
+  dplyr::select(where(is.numeric)) |>
+  map_dbl(~mean(.x, na.rm = TRUE))
+
+# Map to data frame outputs
+models <- mtcars |>
+  split(~cyl) |>
+  map(~lm(mpg ~ wt, data = .x))
+
+summaries <- map_df(models, ~broom::tidy(.x), .id = "cyl")
+```
+
+## Nest-map-unnest pattern
+
+```r
+library(tidyr)
+library(purrr)
+library(dplyr)
+
+calc_stats <- function(df) {
+  summarise(df,
+    height_mean = mean(height, na.rm = TRUE),
+    height_sd   = sd(height, na.rm = TRUE)
+  )
+}
+
+starwars |>
+  group_by(species) |>
+  nest() |>
+  mutate(stats = map(data, calc_stats)) |>
+  select(-data) |>
+  unnest(stats)
+```
+
+# Step-by-step procedures (lab-style)
+
+## Mode function (several approaches)
+
+```r
+# Base R mode
+get_mode <- function(v) {
+  v <- stats::na.omit(v)
+  uniq_v <- unique(v)
+  uniq_v[which.max(tabulate(match(v, uniq_v)))]
+}
+
+# Tidyverse approach
+library(tidyverse)
+get_mode_tv <- function(v) {
+  as.data.frame(v) |>
+    filter(!is.na(v)) |>
+    count(v, sort = TRUE) |>
+    slice(1) |>
+    pull(v)
+}
+```
+
+## Apply function to numeric columns, return list or df
+
+```r
+# list output
+penguins |>
+  select(where(is.numeric)) |>
+  map(mean_sd)
+
+# df output
+penguins |>
+  select(where(is.numeric)) |>
+  map_df(mean_sd) |>
+  tibble::add_column(col = names(select(penguins, where(is.numeric))))
+```
+
+# Common pitfalls and warnings
+
+- map_df() row-binds outputs; all iterations must return same named columns
+- Typed maps (map_dbl etc.) will error if coercion fails
+- Anonymous functions inside map should be vectorized or use rowwise/pmap for row-wise
+- Return types: stick to consistent, predictable outputs (list/data frame)
+- Functions should avoid relying on globals; pass needed objects as args
+
+# Minimal examples
+
+```r
+# Anonymous function
+map_dbl(1:5, \(x) x^2)
+
+# map2 example
+map2_chr(letters[1:3], 1:3, ~paste(.x, .y))
+
+# pmap with df columns
+params <- tibble(a = 1:3, b = 4:6, c = 7:9)
+pmap_dbl(params, ~ ..1 + ..2 + ..3)  # a + b + c
+```
+
+# Practical tasks and applications
+
+- Batch modeling over groups (nest/map)
+- Bulk feature engineering: mutate across()/map over selected cols
+- Robust pipelines with validation (stopifnot, message, warning)
+- Reusable utility functions: parsing, cleaning, summary, plotting wrappers

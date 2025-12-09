@@ -1,0 +1,103 @@
+---
+title: "Cheat Sheet: Web Exercise Patterns and Examples"
+output: md_document
+---
+
+# Spotify streams: split multi-artist strings
+
+```r
+# Separate collaborations and sum
+artists <- spotify_table |>
+  tidyr::separate_rows(artist_s, sep = "\\s*(and|featuring|&|with)\\s*") |>
+  mutate(artist_s = stringr::str_trim(artist_s)) |>
+  group_by(artist_s) |>
+  summarize(songs = n(), total_streams_billions = sum(streams_billions), .groups="drop")
+
+# "Main" artist only
+mains <- spotify_table |>
+  mutate(artist = if_else(str_detect(artist_s, "(and|featuring|&|with)"),
+                          str_extract(artist_s, "^(.*?)(?=\\s+(and|with|featuring|&)\\s)"),
+                          artist_s),
+         artist = str_trim(artist)) |>
+  group_by(artist) |>
+  summarize(songs = n(), total_streams_billions = sum(streams_billions), .groups="drop")
+```
+
+# Wikipedia: precise vs flexible XPath
+
+```r
+# Precise (brittle)
+html_element(parsed, xpath = '//*[@id="mw-content-text"]/div[1]/p[8]') |> html_text2()
+
+# Flexible (anchor on header)
+html_element(parsed, xpath = '//h3[@id="Roman_Cologne"]/following::p[2]') |> html_text2()
+```
+
+# Regex mini-patterns
+
+- Dollar amounts: `"\\$[0-9]+"`
+- ISO date: `"\\d{4}-\\d{2}-\\d{2}"`
+- .txt file names: `".*\\.txt$"`
+- Four backslashes: `"\\\\{4}"`
+- Word boundary with 1–5 letters: `"\\b[[:alpha:]]{1,5}\\b"`
+
+# German legislators debugging patterns
+
+```r
+library(tidyverse); library(legislatoR); library(lubridate)
+
+political_df <- left_join(
+  get_political('deu') |> filter(session == 18),
+  get_core('deu'),
+  by = "pageid"
+)
+
+traffic_df <- get_traffic('deu') |>
+  filter(date >= "2013-10-22", date <= "2017-10-24") |>
+  group_by(pageid) |>
+  summarize(traffic_mean = mean(traffic, na.rm=TRUE),
+            traffic_max  = max(traffic, na.rm=TRUE), .groups="drop")
+
+sessions_served_df <- get_political('deu') |>
+  group_by(pageid) |>
+  summarize(sessions_served = n(), .groups="drop")
+
+legislator_df <- political_df |>
+  left_join(sessions_served_df, by="pageid") |>
+  left_join(traffic_df, by="pageid")
+
+get_age <- function(birth, date_at) {
+  diff <- difftime(ymd(date_at), ymd(birth))
+  lubridate::time_length(diff, "years")
+}
+legislator_df$age_in_years <- round(get_age(legislator_df$birth, "2017-10-24"), 0)
+```
+
+# Plot fixes (ggplot)
+
+- geom_col() uses `stat = "identity"` not `stats = "identity"`
+- scale_x_continuous with custom breaks and labels
+- coord_flip for horizontal bars
+
+```r
+ggplot(top10, aes(y = Mean, x = -Rank)) +
+  geom_col() +
+  coord_flip() +
+  scale_x_continuous(breaks = -nrow(top10):-1, labels = rev(1:nrow(top10)))
+```
+
+# Modeling table improvements (modelsummary)
+
+```r
+modelsummary::modelsummary(models[29:31], 
+  output = "kableExtra",
+  fmt = modelsummary::fmt_significant(2),
+  estimate = "{estimate}",
+  statistic = "conf.int",
+  coef_omit = "Intercept",
+  coef_rename = c("gdp"="Gdp", "bmi"="Avg. BMI"),
+  gof_omit = 'DF|AIC|BIC',
+  title = 'An Improved Regression Table',
+  notes = "Data from WHO via Kaggle",
+  escape = FALSE)
+```

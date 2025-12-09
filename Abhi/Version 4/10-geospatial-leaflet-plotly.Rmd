@@ -1,0 +1,77 @@
+---
+title: "Cheat Sheet: Geospatial (leaflet) and Plotly"
+output: md_document
+---
+
+# Leaflet basics
+
+```r
+library(leaflet)
+leaflet() |>
+  addTiles() |>
+  addCircleMarkers(lng = c(-73.9), lat = c(40.7), radius = 6,
+                   color = "red", fill = TRUE, fillOpacity = 0.5)
+```
+
+## Polygons with choropleth (Gapminder Africa)
+
+```r
+library(sf); library(dplyr); library(rnaturalearth)
+africa <- ne_countries(continent = "Africa", returnclass = "sf")
+pal <- colorNumeric("YlOrRd", domain = NULL)
+
+africa_data <- africa |>
+  left_join(gapminder |> filter(continent=="Africa", year==2007),
+            by = c("name" = "country"))
+
+leaflet(africa_data) |>
+  addTiles() |>
+  addPolygons(fillColor = ~pal(lifeExp), fillOpacity = 0.7) |>
+  addLegend(pal = pal, values = ~lifeExp, title = "Life Expectancy",
+            position = "bottomleft")
+```
+
+## Legends and bounds
+
+```r
+leaflet() |>
+  addTiles() |>
+  fitBounds(-127.44,24.05,-65.30,50.35) |>
+  addLegend("bottomleft", colors=c("orange","gray"), labels=c("Yes","No"))
+```
+
+# Plotly with ggplot
+
+```r
+library(plotly)
+p <- ggplot(df, aes(x, y, color = group,
+                    text = paste0("<b>", name,"</b>"))) +
+  geom_point() +
+  labs(title = "X vs Y")
+ggplotly(p, tooltip = "text", height = 400)
+```
+
+# Interactive tooltips and sizing
+
+```r
+ggplot(df, aes(x, y,
+               size = BoxOffice,
+               text = paste0('<b>', Title, '</b><br>',
+                             'Year: ', Year, '<br>',
+                             'Box Office: $', round(BoxOffice/1e6,1), 'm'))) +
+  geom_point(alpha = 0.7) +
+  scale_size(range = c(1,10), guide = "none")
+```
+
+# Pitfalls and warnings
+
+- Leaflet needs numeric geometries (sf supported); ensure proper join keys (country names may differ)
+- Color palettes: choose sequential for numeric, qualitative for categories
+- Projection handled by leaflet (Web Mercator); keep simple transforms
+- Plotly: high data volumes can be heavy; simplify tooltips, sample if needed
+
+# Practical tasks
+
+- Build shaded choropleth by joining sf boundaries with stats
+- Add campus-only markers with conditional subsets
+- Create interactive scatter with hover text and dynamic axis labels
