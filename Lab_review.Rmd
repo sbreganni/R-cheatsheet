@@ -1,0 +1,396 @@
+---
+title: "Untitled"
+author: "Sofia"
+date: "2025-10-09"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# IDS Labs Review
+
+## Lab 1 - introduction
+
+### Dataframes
+
+**Indexing**
+
+-   `object[row, column]`
+-   `object[, column]` or `object$column` -\> you get the whole column
+
+**Tabularize**
+
+-   `table(object$column)` -\> counts the number of appearences of each element in the column
+    -   `table(penguins$species, penguins$body_mass_g > mean(penguins$body_mass_g, na.rm = TRUE))`
+-   `summary(penguins$body_mass_g)`
+
+### The TIDYVERSE
+
+-   dplyr – data manipulation
+-   tidyr – reshaping
+-   ggplot2 – plotting
+-   readr – reading files
+-   stringr – string manipulation
+-   tibble – tidy data frames
+-   forcats – factors
+-   purrr – iteration/mapping
+
+Mos important dplyr *verbs* for dataset exploration:
+
+| Function | Purpose |
+|--------------------------|----------------------------------------------|
+| `select()` | Choose columns |
+| `filter()` | Subset rows based on conditions |
+| `mutate()` | Create or transform variables |
+| `arrange()` | Sort rows |
+| `group_by()` | Define groups |
+| `summarize()` | Create summary statistics |
+| `slice()` | Subset rows by position rather than filtering by values |
+| `pull()` | Extract a column from a data frame as a vector or scalar |
+| `count()` `distinct()` | Number and isolate unique observations |
+| `where()` | Select the variables for which a function returns true |
+| `across()` | Summarize or mutate multiple variables in the same way |
+| `case_when()` | Vectorize multiple if_else() (or base R ifelse()) statements |
+
+## Lab 2 - functions
+
+| Task                    | Package | Key Function(s)                    |
+|-------------------------|---------|------------------------------------|
+| Data import             | readr   | `read_csv()`                       |
+| Directory/file handling | fs      | `dir_create()`, `file_copy()`      |
+| Reproducible paths      | here    | `here("folder", "file")`           |
+| Function iteration      | purrr   | `map()`, `map_dfr()`, `map2()`     |
+| Data manipulation       | dplyr   | `mutate()`, `select()`, `across()` |
+
+**Iteration Strategies**
+
+Using `across()` (tidyverse): Fastest way to apply a function to multiple columns.
+
+```         
+df |> 
+  mutate(across(where(is.numeric), zscale))
+```
+
+Using `purrr::map()`: For lists or vectors.
+
+```         
+# Map single input 
+map(list_of_vectors, zscale)
+
+# Map and return a tibble
+map_dfr(list_of_vectors, zscale)
+
+# Map over multiple inputs
+map2(x_list, y_list, ~ .x + .y)
+```
+
+**Strategy notes**
+
+-   Use across() when working inside a tibble.
+-   Use map() when iterating outside a data frame or generating lists.
+-   Use map_dfr() when you want a row-bound tibble as output.
+-   Prefer iteration over loops → more declarative, less error-prone.
+-   *Identify repetition → write a function*
+    -   If you find yourself writing the same logic 3+ times, turn it into a function.
+-   *Identify multiple columns → use `across()`*
+    -   Useful when you need to apply the same transformation across many variables (e.g., all numeric columns, all items in a scale).
+-   *Identify list- or row-wise operations → use `purrr`*
+    -   Ideal for iterating over files, running multiple models, or generating output programmatically (e.g., `map()`, `map_dfr()`).
+
+### The PURRR package
+
+-   **Core idea of purrr**
+    -   Provides a consistent and readable way to iterate over vectors, lists, or columns.
+    -   Preferable to for-loops because output types are predictable (`map_*()`).
+
+| Function / Concept | What it Does | Example | Output Type |
+|----------------|----------------|------------------------|----------------|
+| **`map()`** | Apply a function to each element of a list or vector | `map(list_of_vectors, zscale)` | List |
+| **`map_dfr()`** | Map a function and row-bind results into a tibble | `map_dfr(files, read_csv)` | Tibble (rows combined) |
+| **`map2()`** | Iterate over two vectors/lists in parallel | `map2(x_list, y_list, ~ .x + .y)` | List |
+| **Anonymous functions (`~`)** | Define a small inline function | `map(num_cols, ~ mean(.x, na.rm = TRUE))` | Depends on function |
+| **Iteration over selected columns** | Use purrr outside mutate for flexible iteration | `map_dfr(select(df, where(is.numeric)), zscale)` | Tibble |
+
+-   **Key strategy tips**
+    -   Use `map()` when you need a **list output**.
+    -   Use `map_dfr()` when you need a **single combined tibble**.
+    -   Use `map2()`/**`pmap()`** when iterating over **multiple inputs**.
+    -   Put functions in an `R/` folder and call them inside `map()` to keep workflow clean.
+    -   Ensure each function returns a consistent structure — purrr expects predictable types.
+
+## Lab 3 - automation
+
+**Nesting** is a powerful technique that helps us organize grouped data. When we nest data:
+
+1.  We group our data by some variable(s)
+2.  All the remaining data for each group gets "packed" into a special list-column
+3.  Each row now represents one group, with all that group's data stored in the list-column
+
+``` r
+# Before nesting: regular dataframe
+penguins
+#> species    bill_length_mm  bill_depth_mm  ...
+#> Adelie     39.1           18.7           ...  
+#> Adelie     39.5           17.4           ...
+#> Chinstrap  46.5           17.9           ...
+
+# After nesting by species: each species gets one row
+penguins %>% 
+  group_by(species) %>% 
+  nest()
+
+#> species    data              
+#> Adelie     <tibble [152 × 7]>
+#> Chinstrap  <tibble [68 × 7]> 
+#> Gentoo     <tibble [124 × 7]>
+```
+
+## Lab 4 - webdata
+
+| Package | Purpose / Usage | Main Verbs / Functions |
+|------------------|-----------------------------------|------------------|
+| **stringr** | String manipulation, regex operations | `str_detect()`, `str_extract()`, `str_extract_all()`, `str_replace()`, `str_replace_all()`, `str_split()`, `str_trim()` |
+| **rvest** | Web scraping: extract HTML nodes, attributes | `read_html()`, `html_elements()`, `html_element()`, `html_text2()`, `html_attr()`, `html_table()` |
+| **xml2** | Low-level HTML/XML navigation (supports XPath) | `read_html()`, `xml_find_all()`, `xml_find_first()`, `xml_attr()`, `xml_text()` |
+| **purrr** | Functional programming, looping without loops | `map()`, `map_chr()`, `map_dfr()`, `map_df()`, `possibly()` |
+| **dplyr** | Data wrangling | `filter()`, `select()`, `mutate()`, `summarise()`, `group_by()`, `arrange()`, `rename()` |
+| **tidyr** | Reshaping and cleaning data | `pivot_longer()`, `pivot_wider()`, `unnest()`, `drop_na()` |
+| **readr** | Importing text/csv files | `read_csv()`, `read_tsv()`, `write_csv()` |
+| **lubridate** | Working with dates and times | `ymd()`, `ymd_hms()`, `mdy()`, `wday()`, `month()`, `year()` |
+| **stringi** | Advanced string operations (backend of stringr) | `stri_detect()`, `stri_extract()`, `stri_replace_all()`, `stri_split()` |
+
+HTML structure:
+
+``` html
+<!DOCTYPE html> 
+  <html> 
+    <head>
+      <title id=1>First HTML</title>
+    </head>
+  <body>
+      <div>
+          <h1>
+            I am your first HTML file!
+          </h1>
+      </div>
+  </body>
+</html>
+```
+
+Pagination Strategy
+
+```         
+# Identify URL pattern:
+
+https://site.com/page=1
+
+# Loop over pages:
+
+urls <- paste0("https://site.com/page=", 1:10)
+
+data <- purrr::map_dfr(urls, function(u) {
+  read_html(u) |> 
+    html_elements(".product") |> 
+    html_text2()
+})
+```
+
+### Regex
+
+| Syntax | Meaning | Example |
+|----------------------|-------------------------|-------------------------|
+| `.` | Any single character | `a.c` matches `abc`, `a-c` |
+| `^` | Start of string | `^Hello` |
+| `$` | End of string | `world$` |
+| `*` | 0 or more repetitions | `a*` matches `""`, `a`, `aaa` |
+| `+` | 1 or more repetitions | `a+` matches `a`, `aa` |
+| `?` | 0 or 1 repetition | `colou?r` matches `color`, `colour` |
+| `{n}` | Exactly n repetitions | `[0-9]{4}` |
+| `{n,}` | At least n repetitions | `[A-Z]{2,}` |
+| `{n,m}` | Between n and m repetitions | `[0-9]{2,4}` |
+| `[]` | Character class | `[abc]` matches `a`, `b`, `c` - any of the characters within the brackets can be matched |
+| `[^]` | Negated character class | `[^0-9]` = non-digit |
+| `()` | Group | `(cat|dog)` |
+| `|` | OR | `yes|no` |
+| `\\` | Escape special character | `\\.` matches literal `.` |
+| `[:digit:]` | Digit (0–9) | `[[:digit:]]+` |
+| `[:alpha:]` | Letters | `[[:alpha:]]+` |
+| `[:alnum:]` | Letters or digits | `[[:alnum:]]` |
+| `[:space:]` | Whitespace | `[[:space:]]+` |
+| `\\s` | Whitespace (shorthand) | `\\s+` |
+| `\\d` | Digit (shorthand) | `\\d{3}` |
+| `\\w` | Word character (letters/digits/underscore) | `\\w+` |
+| `(?=...)` | Look-ahead | `foo(?=bar)` finds `foo` before `bar` |
+| `(?<=...)` | Look-behind | `(?<=ID: )\\d+` extracts digits after `ID:` |
+| `(?!...)` | Negative look-ahead | `foo(?!bar)` |
+| `(?<!...)` | Negative look-behind | `(?<!@)gmail` |
+| `.*` | Any characters (greedy) | `http.*html` |
+| `.*?` | Any characters (non-greedy) | `<.*?>` |
+
+### XPath
+
+XPath Quick Reference
+
+```         
+//tag                 # all <tag>
+/html/body/div        # full path
+//div[@class='item']  # divs with given class
+//a[@href]            # links with href attribute
+```
+
+XPath grammar:
+
+```         
+Xpath = //tagname[@Attribute='Value']
+
+# // --> select current node
+# tagname --> e.g. input, div, img etc.
+# @ --> select attribute
+# Attribute --> attribute name
+# 'Value' --> value of an attribute
+```
+
+```         
+element1/relation::element2 --> "//p/preceding-sibling::h1"
+```
+
+Textual predicates: `contains()`, `starts_with` or `ends_with()`. Predicates can also be chained together with `and`. Multiple xpaths can be combined in an or logic with the pipe operator `|`:
+
+```         
+html_elements(parsed_doc, xpath = "//h1[contains(., 'Rolf')] | //h1[contains(., 'Robert')]" )
+```
+
+| Syntax | Meaning | Example |
+|----------------------|-------------------------|-------------------------|
+| `//tag` | Select all nodes named `tag` anywhere in the document | `//a` (all links) |
+| `/tag` | Select `tag` from the root — absolute path | `/html/body/div` |
+| `.` | Current node | `.` |
+| `..` | Parent node | `..` |
+| `@attr` | Select attribute | `//a/@href` |
+| `//tag[@attr]` | Select nodes with attribute present | `//img[@src]` |
+| `//tag[@attr='value']` | Attribute equals value | `//div[@class='header']` |
+| `//tag[contains(@attr,'value')]` | Attribute contains substring | `//a[contains(@href, 'login')]` |
+| `//tag[contains(text(),'value')]` | Select by visible text | `//p[contains(text(),'Price')]` |
+| `//tag[text()='value']` | Exact text match | `//button[text()='Submit']` |
+| `//tag[1]` | First `tag` child at that level | `//ul/li[1]` |
+| `//tag[last()]` | Last node | `//tr[last()]` |
+| `(//tag)[n]` | nth matching tag in the entire doc | `(//a)[3]` |
+| `//tag[@class='a b']` | Matches EXACT class string | `//div[@class='item active']` |
+| `contains(@class, 'item')` | Class contains substring (more flexible) | `//div[contains(@class, 'item')]` |
+| `//tag[@attr!='value']` | Attribute not equal | `//div[@id!='main']` |
+| `//*` | Select all nodes | `//*` |
+| `//tag/*` | All children of tag | `//div/*` |
+| `//tag[@attr]/*` | Children of nodes with attribute | `//ul[@id]/li` |
+| `following-sibling::tag` | Next sibling elements | `//h2/following-sibling::p` |
+| `preceding-sibling::tag` | Previous sibling elements | `//p/preceding-sibling::h2` |
+| `parent::tag` | Parent of a node | `//span/parent::div` |
+| `ancestor::tag` | Any ancestor of a node | `//span/ancestor::body` |
+| `descendant::tag` | Any descendant | `//div/descendant::a` |
+| `normalize-space(text())` | Trim whitespace in text matching | `//p[normalize-space(text())='Home']` |
+
+## Lab 5 - web scraping
+
+| Package     | Purpose                           | Key Functions                                                          |
+|-------------|-----------------------------------|-------------------------------------------------------------------------|
+| **rvest**   | HTML extraction & parsing          | `read_html()`, `html_nodes()`, `html_element()`, `html_text()`, `html_attr()`, `html_table()` |
+| **httr**    | HTTP requests & responses          | `GET()`, `POST()`, `content()`, `status_code()`, `add_headers()`, `set_cookies()` |
+| **jsonlite**| JSON parsing                       | `fromJSON()`, `toJSON()`                                                |
+| **tidyverse** | Data wrangling & cleaning         | `mutate()`, `select()`, `filter()`, `pivot_*()`                         |
+| **stringr** | Regex and text manipulation        | `str_extract()`, `str_detect()`, `str_replace()`                        |
+| **xml2**    | Low-level HTML/XML parsing         | `read_html()`, `xml_find_all()`                                         |
+
+### Core R Scraping Workflow
+1. Load the webpage
+
+``` 
+library(rvest)
+page <- read_html("https://example.com")
+``` 
+
+2. Select elements (CSS selectors or XPath)
+
+``` 
+titles <- page |> html_elements(".title") |> html_text()
+links  <- page |> html_elements("a") |> html_attr("href")
+``` 
+
+3. Extract tables
+
+``` 
+tables <- page |> html_table()
+``` 
+
+4. Handle dynamic content (JSON APIs) - Inspect network tab → find XHR request → call using httr.
+
+``` 
+library(httr)
+resp <- GET("https://example.com/api/data")
+json <- content(resp, as = "text")
+df <- jsonlite::fromJSON(json)
+``` 
+
+5. Looping over pages
+
+``` 
+results <- purrr::map_df(1:10, \(p) {
+  url <- paste0(base_url, "?page=", p)
+  read_html(url) |> 
+    html_elements(".item") |> 
+    html_text()
+})
+``` 
+
+### API work
+
+**i need to figure that out**
+
+## Data exploration
+
+Typical Exploration Pipeline:
+
+```         
+penguins |>
+  filter(!is.na(body_mass_g))|>
+  select(species, island, body_mass_g)|>
+  group_by(species)|>
+  summarize(n = n(),
+            avg_mass = mean(body_mass_g, na.rm = TRUE))|>
+  arrange(desc(avg_mass))
+```
+
+A typical exploratory function:
+
+```         
+summary_stats <- function(data, group_var, num_var) {
+  data |>
+    group_by({{ group_var }})|>
+    summarize(n = n(),
+              mean = mean({{ num_var }}, na.rm = TRUE),
+              sd = sd({{ num_var }}, na.rm = TRUE))
+}
+```
+
+Data Exploration Strategy (Step-by-Step)
+
+```         
+## 1 Inspect the structure
+
+names(data)        # column names     :contentReference[oaicite:5]{index=5}
+str(data)          # structure
+head(data)         # first rows
+summary(data)      # numeric summaries
+
+## 2 Access data
+
+data[1, 3]         # row 1, column 3
+data[15:20, 1:3]   # slice ranges    :contentReference[oaicite:6]{index=6}
+data$species
+
+## Dealing with NAs 
+
+is.na(data$var)
+drop_na(data)
+replace_na(list(var = 0))
+```
