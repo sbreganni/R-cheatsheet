@@ -1,0 +1,133 @@
+---
+title: "Cheat Sheet: Iteration, Automation, Scheduling, Debugging"
+output: md_document
+---
+
+# Iteration: options
+
+- Vectorization: prefer `x * 2` over loops when possible
+- for-loops: readable, fine for many tasks
+- purrr::map*: declarative typed iteration (see functions/purrr sheet)
+
+## Examples
+
+```r
+# for loop template
+x <- 1:5; out <- numeric(length(x))
+for (i in seq_along(x)) out[i] <- x[i] * 2
+
+# purrr alternative
+purrr::map_dbl(x, ~ .x * 2)
+```
+
+# Automation and scripting
+
+## In R (master script)
+
+```r
+# master.R
+# Clean old outputs
+outputs <- c("data_raw.tsv", "data_clean.tsv", list.files(pattern="*.png$"))
+file.remove(outputs)
+
+# Run steps
+source("00-packages.R")
+source("01-download-data.R")
+source("02-process-data.R")
+source("03-plot.R")
+```
+
+## Shell + Rscript
+
+```sh
+#!/bin/sh
+set -eux
+cd /path/to/project
+Rscript 01-download-data.R
+Rscript 02-process-data.R
+Rscript 03-plot.R
+```
+
+## Makefile (dependency-aware)
+
+```make
+all: lotr_clean.tsv barchart.png
+
+lotr_raw.tsv:
+	curl -L http://bit.ly/lotr_raw-tsv > lotr_raw.tsv
+
+lotr_clean.tsv: lotr_raw.tsv 02-process-data.R
+	Rscript 02-process-data.R
+
+barchart.png: lotr_clean.tsv 03-plot.R
+	Rscript 03-plot.R
+
+clean:
+	rm -f lotr_raw.tsv lotr_clean.tsv *.png
+```
+
+# Scheduling
+
+## Windows (taskscheduleR)
+
+```r
+library(taskscheduleR)
+taskscheduler_create(
+  taskname = "MyTask_5min",
+  rscript  = "scripts/scrape.R",
+  schedule = "MINUTE",
+  starttime = "10:40",
+  modifier = 5
+)
+taskscheduler_ls()
+taskscheduler_delete("MyTask_5min")
+```
+
+## macOS/Linux (cronR)
+
+```r
+library(cronR)
+cmd <- cron_rscript("scripts/scrape.R")
+cron_add(cmd, frequency = '*/15 * * * *', id = 'Scraper_15min')
+cron_ls()
+cron_rm('Scraper_15min')
+```
+
+# Debugging strategies
+
+1. Google error messages (simplify variable-specific text)
+2. Reset session (Session → Restart R)
+3. Make error repeatable (minimal reprex), then stepwise isolate
+4. Use tools:
+   - traceback(): call stack after an error
+   - browser(): interactive step-through
+   - debug()/undebug(): attach debugger to a function
+   - options(error = recover): choose frame at error
+
+## Examples
+
+```r
+# Inspect stack
+traceback()
+
+# Enter browser at point
+f <- function(x) { browser(); x + 1 }
+f(10)
+
+# Debug functions from packages
+debug(stats::lm)
+lm(mpg ~ wt, data = mtcars)
+undebug(stats::lm)
+
+# Recover mode
+options(error = recover)
+# ... cause error
+options(error = NULL)
+```
+
+# Pitfalls and warnings
+
+- Hidden state: global objects survive across scripts unless restarted
+- Rscript runs fresh sessions; load packages and set working dir explicitly
+- Make: use correct dependencies; otherwise stale outputs persist
+- Scheduled tasks run headless: use absolute paths and robust logging

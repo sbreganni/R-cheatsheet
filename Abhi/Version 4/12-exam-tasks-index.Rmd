@@ -1,0 +1,48 @@
+---
+title: "Exam-Ready Tasks Index"
+output: md_document
+---
+
+# Tidyverse
+- Filter, arrange, select helpers, mutate with case_when/across
+- Grouped summarize with missing handling
+- Pivot longer/wider; separate/unite
+
+# Functions and purrr
+- Write clean functions; validate inputs
+- Map across columns; nest-map-unnest for grouped workflows
+
+# Iteration & Automation
+- Master script (source)
+- Shell + Rscript; Makefile
+- Schedule with taskscheduleR/cronR
+- Debug with traceback/browser/debug/recover
+
+# Web Data (HTML/XPath/CSS/RegEx)
+- Build robust XPaths anchored to headings/ids
+- Extract lists/tables; clean with stringr
+- Common regex patterns (dates, money, extensions)
+
+# Scraping & APIs
+- rvest parse/select/extract; rate-limit; identify
+- httr/jsonlite GET/POST; auth keys via env
+
+# Databases & SQL
+- DBI + RSQLite; copy_to; tbl; collect
+- Joins; indexes; show_query
+- Write simple SQL
+
+# Modeling & Reporting
+- Formulas (interactions, transforms)
+- Fit lm/glm/gam; broom tidy/glance/augment
+- modelsummary tables; coefficient plots
+
+# Visualization
+- ggplot2 grammar: scatter/line/bar/hist/density/box/violin/facets
+- Scales, color choices, overplotting strategies
+- Principles: proportional ink, avoid dual axes, informative labels
+
+# Shiny/Flexdashboard
+- Basic UI/server; reactive pipelines
+- plotly tooltips; leaflet choropleth
+- Flexdashboard shiny runtime with {.sidebar} inputs

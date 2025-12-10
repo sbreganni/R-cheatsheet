@@ -1,0 +1,115 @@
+---
+title: "Cheat Sheet: Modeling and Evaluation"
+output: md_document
+---
+
+# Key concepts
+
+- Model = systematic part f(x) + stochastic error ε
+- Formulas express model structure: `y ~ x1 + x2 + x1:x2 + I(x^2)`
+- Families: lm, glm (logit/poisson), gam, penalized (glmnet), mixed (lme4)
+- Multiverse/specification curves: explore robustness across choices
+
+# Formula patterns
+
+```r
+# As string → formula
+fmla <- as.formula("arr_delay ~ dep_delay + distance + origin")
+
+# Interactions
+y ~ x1 * x2     # x1 + x2 + x1:x2
+y ~ x1:x2       # interaction only
+y ~ x + I(x^2)  # polynomial term
+y ~ .           # all other columns as predictors
+```
+
+# Fit models
+
+```r
+lm_out   <- lm(arr_delay ~ dep_delay + distance + origin, data = flights)
+logit_out<- glm(am ~ cyl + hp + wt, data = mtcars, family = binomial)
+library(mgcv)
+gam_out  <- gam(mpg ~ s(disp) + s(wt), data = mtcars)
+```
+
+# Extract and process results (broom)
+
+```r
+library(broom)
+tidy(lm_out, conf.int = TRUE)
+glance(lm_out)
+augment(lm_out, se_fit = TRUE) |> head()
+```
+
+# Reporting (modelsummary)
+
+```r
+library(modelsummary)
+modelsummary(
+  list("Dep only"=lm(arr_delay ~ dep_delay, data=flights),
+       "Dist only"=lm(arr_delay ~ distance, data=flights),
+       "Both"     =lm(arr_delay ~ dep_delay + distance, data=flights)),
+  estimate  = "{estimate} [{conf.low}, {conf.high}]",
+  statistic = NULL,
+  gof_omit  = ".+",
+  title     = "Linear regression of arrival delay",
+  output    = "gt"
+)
+```
+
+# Specification multiverse (example)
+
+```r
+library(purrr); library(dplyr)
+depvar <- "arr_delay"
+covars <- c("dep_delay","distance","origin","air_time","hour","carrier")
+
+combn_models <- function(depvar, covars, data) {
+  combn_list <- unlist(lapply(seq_along(covars), function(i) combn(covars, i, simplify=FALSE)), recursive=FALSE)
+  forms <- map(combn_list, ~ as.formula(paste(depvar, "~", paste(.x, collapse="+"))))
+  map(forms, ~lm(.x, data = data))
+}
+
+models <- combn_models(depvar, covars, flights)
+results <- map_dfr(models, tidy, .id="spec")
+results |> filter(!term %in% c("(Intercept)","carrier")) |>
+  group_by(term) |>
+  summarize(median_est = median(estimate), q05 = quantile(estimate, .05), q95= quantile(estimate,.95))
+```
+
+# Diagnostics and predictions
+
+```r
+# Fitted and residuals
+fitted.values(lm_out)[1:5]
+residuals(lm_out)[1:5]
+
+# Predictions on new data
+new <- tibble(dep_delay = c(10,30), distance = c(500,1000), origin = c("JFK","LGA"))
+predict(lm_out, newdata = new, interval = "confidence")
+```
+
+# Plotting coefficients (modelplot)
+
+```r
+modelplot(lm_out,
+          coef_omit = "Interc",
+          coef_map  = c("distance"="Distance (miles)",
+                        "originLGA"="Origin: LGA",
+                        "originJFK"="Origin: JFK"))
+```
+
+# Pitfalls and assumptions
+
+- lm: linearity, homoskedastic errors, independence; check residuals
+- Categorical vars auto-dummied; interpret baseline carefully
+- Collinearity inflates SEs; consider VIF or penalization
+- Missing data: models drop NAs listwise
+- Formula `.` includes all remaining columns—ensure no leakage or unintended features
+
+# Practical tasks
+
+- Build, tidy, and report multiple models
+- Compare models via information criteria (AIC/BIC)
+- Visualize effects and uncertainty
+- Explore robustness via model/spec variations

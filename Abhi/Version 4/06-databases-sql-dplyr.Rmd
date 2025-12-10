@@ -1,0 +1,110 @@
+---
+title: "Cheat Sheet: Databases, SQL, and dplyr/dbplyr"
+output: md_document
+---
+
+# Key concepts
+
+- Relational databases store data in normalized tables (relations)
+- Keys: primary (uniquely identify rows), foreign (reference other tables)
+- Joins: combine tables by keys (left, inner, right, full, semi, anti)
+- DBI: R database interface; dbplyr translates dplyr to SQL lazily
+
+# Connect and load
+
+```r
+library(DBI)
+library(RSQLite)
+library(dplyr)
+
+con <- dbConnect(RSQLite::SQLite(), dbname = "mydb.sqlite")
+
+# Copy data to DB (example)
+copy_to(con, nycflights13::flights, "flights", temporary = FALSE,
+        indexes = list(c("year","month","day"), "carrier", "tailnum", "dest"))
+
+# Reference tables
+flights_db <- tbl(con, "flights")
+```
+
+# dplyr on databases (lazy)
+
+```r
+# Query stays remote until collect()
+q <- flights_db |>
+  select(year:day, dep_delay, arr_delay) |>
+  filter(dep_delay > 60) |>
+  group_by(dest) |>
+  summarize(n=n(), avg_arr = mean(arr_delay), .groups="drop") |>
+  arrange(desc(avg_arr))
+
+show_query(q)    # inspect SQL
+res <- collect(q) # bring to R
+```
+
+# SQL query directly
+
+```r
+dbGetQuery(con, "SELECT dest, COUNT(*) n FROM flights GROUP BY dest ORDER BY n DESC LIMIT 5;")
+```
+
+# Join patterns and keys
+
+```r
+airlines <- tbl(con, "airlines")
+planes   <- tbl(con, "planes")
+
+flights_db |>
+  left_join(planes, by = "tailnum") |>
+  left_join(airlines, by = "carrier") |>
+  select(year, month, day, flight, tailnum, model, name) |>
+  head() |> collect()
+```
+
+# Pitfalls and warnings
+
+- Inner join drops unmatched → prefer left_join to preserve base table
+- Ambiguous column names (e.g., year) → rename before join or specify by=
+- dbplyr laziness: nrow(), tail() not available on remote tables; use `collect()`
+- Indexes: create on common filters/joins to speed queries
+- SQL order of execution differs from dplyr pipeline order; rely on dbplyr or write SQL carefully
+
+# Basic SQL syntax (quick reference)
+
+```sql
+SELECT cols
+FROM table
+WHERE condition
+GROUP BY cols
+HAVING condition
+ORDER BY col DESC
+LIMIT 10;
+```
+
+# Practical tasks
+
+- Anti-join flights without planes (unregistered)
+```r
+flights_db |>
+  anti_join(tbl(con, "planes"), by = "tailnum") |>
+  count(carrier, sort = TRUE) |>
+  left_join(tbl(con, "airlines"), by = "carrier") |>
+  collect()
+```
+
+- Add airports to DB and query Jan 1 flights with airline names
+```r
+copy_to(con, nycflights13::airports, "airports", temporary = FALSE, indexes = "faa")
+
+flights_db |>
+  filter(month == 1, day == 1) |>
+  left_join(tbl(con, "airlines"), by = "carrier") |>
+  select(carrier, name, flight) |>
+  collect()
+```
+
+# Clean up
+
+```r
+dbDisconnect(con)
+```

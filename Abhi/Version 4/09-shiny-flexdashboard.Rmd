@@ -1,0 +1,112 @@
+---
+title: "Cheat Sheet: Shiny Apps and Flexdashboards"
+output: md_document
+---
+
+# Key concepts
+
+- Shiny: interactive web apps in R (ui + server + shinyApp)
+- Reactive: outputs update when inputs change
+- Flexdashboard: R Markdown dashboards, `runtime: shiny` for interactivity; `.sidebar` column for inputs
+
+# Shiny minimal pattern
+
+```r
+library(shiny)
+
+ui <- fluidPage(
+  titlePanel("My App"),
+  sidebarLayout(
+    sidebarPanel(
+      sliderInput("n", "N:", 10, 100, 50)
+    ),
+    mainPanel(
+      plotOutput("p")
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  data <- reactive({ rnorm(input$n) })
+
+  output$p <- renderPlot({
+    hist(data(), breaks = 20, col = "steelblue", border = "white")
+  })
+}
+
+shinyApp(ui, server)
+```
+
+# Shiny patterns from exercises
+
+## Movies explorer (plotly + SQL-like filters)
+
+- Use reactive() to build filtered data frame from inputs
+- Convert dbplyr table to data.frame (as.data.frame())
+- Build ggplot and convert with plotly::ggplotly()
+- Tooltips via `aes(text = "paste0(...)")` + ggplotly(tooltip="text")
+
+```r
+movies <- reactive({
+  m <- all_movies |>
+    filter(Reviews >= input$reviews,
+           Oscars >= input$oscars,
+           Year   >= input$year[1],
+           Year   <= input$year[2]) |>
+    arrange(Oscars)
+
+  if (input$genre != "All") {
+    m <- m |> filter(Genre %like% paste0("%", input$genre, "%"))
+  }
+  as.data.frame(m)
+})
+```
+
+# Flexdashboard templates
+
+## YAML
+
+```yaml
+---
+title: "Dashboard Title"
+output:
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+runtime: shiny
+---
+```
+
+## Sidebar + leaflet
+
+```r
+Column {.sidebar}
+-----------------------------------------------------------------------
+selectInput("year", "Year", choices = 2000:2010, selected = 2007)
+
+Column {data-width=650}
+-----------------------------------------------------------------------
+renderLeaflet({
+  africa_data <- africa |>
+    left_join(gapminder |> filter(continent=="Africa", year==input$year),
+              by = c("name" = "country"))
+
+  leaflet(africa_data) |>
+    addTiles() |>
+    addPolygons(fillColor = ~pal(lifeExp), fillOpacity = 0.7) |>
+    addLegend(pal = pal, values = ~lifeExp, title = "Life Expectancy")
+})
+```
+
+# Pitfalls and warnings
+
+- Long-running computations in reactive() will block UI; consider promises/futures
+- Use req() to ensure inputs exist before running code
+- Validate user input; avoid SQL injection (dbplyr helps)
+- In flexdashboard, heavy data loading should happen in the setup chunk; reactive parts in render* blocks
+
+# Practical tasks
+
+- Add dynamic titles based on inputs (paste inside labs/title or output$)
+- Bubble charts: size aesthetic mapped to numeric (e.g., box office)
+- Filtering widgets: selectInput, sliderInput, textInput

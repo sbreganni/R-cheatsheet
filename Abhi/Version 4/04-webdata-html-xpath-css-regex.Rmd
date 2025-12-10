@@ -1,0 +1,111 @@
+---
+title: "Cheat Sheet: Web Data — HTML, XPath, CSS, RegEx"
+output: md_document
+---
+
+# Key definitions
+
+- HTML: markup language; DOM is tree of elements (nodes)
+- XPath: query language to select nodes in XML/HTML trees
+- CSS selectors: select elements by tag, class `.class`, id `#id`
+- RegEx: pattern language for text matching/extraction
+
+# HTML essentials
+
+- Elements: `<tag attr="value">content</tag>`
+- Common tags: `<a href>`, `<p>`, `<h1>..</h6>`, `<ul><li>`, `<div>`, `<span>`, `<table><tr><th><td>`
+- Attributes: id, class, href, src
+
+# XPath grammar
+
+- Absolute `/html/body/...` vs relative `//p`
+- Predicates `[ ]`: numeric, attribute `[ @class='x' ]`, text `[contains(text(),'foo')]`
+- Axes: `ancestor::`, `descendant::`, `following-sibling::`, `preceding-sibling::`
+- Functions: contains(), starts-with(), ends-with() (in 2.0), last(), position()
+
+## rvest + XPath templates
+
+```r
+library(rvest)
+
+doc <- read_html("https://example.com")
+
+# Select nodes
+nodes <- html_elements(doc, xpath = "//h2[text()='Alphabetically']//following::li/a[1]")
+
+# Extract text/attributes
+titles <- html_text2(nodes)
+links  <- html_attr(nodes, "href")
+
+# Table extraction
+tables <- html_table(doc, header = TRUE)
+df <- tables[[1]]
+```
+
+## CSS selector templates
+
+```r
+# CSS by class and descendant
+nodes <- html_elements(doc, css = ".article .title")
+```
+
+# RegEx essentials (stringr)
+
+- Match anchors: `^` (start), `$` (end)
+- Wildcards: `.` any char, `[]` class, `[^]` negate
+- Quantifiers: `?` 0/1, `*` 0+, `+` 1+, `{n}`, `{n,}`, `{n,m}`
+- Groups: `(pattern)`; backref `\\1`
+- Predefined classes: `[:digit:]`, `[:alpha:]`, `[:alnum:]`, `[:space:]`, `[:punct:]`
+
+## Templates
+
+```r
+library(stringr)
+
+# Extract first/all
+str_extract(text, "pattern")
+str_extract_all(text, "pattern") |> unlist()
+
+# Examples
+str_detect(text, "^\\d{4}-\\d{2}-\\d{2}$") # YYYY-MM-DD
+str_extract_all(text, "\\\\{4}")           # four backslashes
+str_extract_all(text, "\\$[0-9]+")         # prices
+
+# Names/numbers extraction
+ex <- "555-1239Moe Szyslak(636) 555-0113"
+names <- str_extract_all(ex, "[[:alpha:]., ]{2,}") |> unlist()
+phones <- str_extract_all(ex, "\\(?(\\d{3})?\\)?(-| )?\\d{3}(-| )?\\d{4}") |> unlist()
+```
+
+# Step-by-step DOM selection (browser tools)
+
+1. Inspect element (right-click → Inspect)
+2. Identify stable parent (heading, section id, table)
+3. Build relative XPath from stable parent to targets
+4. Test XPath in console or with rvest
+5. Extract text/attrs; normalize whitespace (html_text2)
+
+# Pitfalls, assumptions, warnings
+
+- Dynamic content (JS/AJAX) may not be in HTML → need API/RSelenium
+- XPath from browser often too specific; generalize to stable anchors
+- Use `useNA="always"` in table() for missing categories
+- `html_table()` best for clean semantic tables; messy tables need manual parsing
+- RegEx greediness: prefer `+?` for non-greedy matching where needed
+- Escape backslashes; in R strings, write `"\\d"` for `\d`
+
+# Minimal examples
+
+```r
+# Extract 2nd paragraph after a header by id
+read_html(url) |>
+  html_element(xpath = "//h3[@id='Roman_Cologne']/following::p[2]") |>
+  html_text2()
+```
+
+# Practical tasks
+
+- Extract lists (ul/li), article titles, links
+- Pull tables into data frames
+- Parse dates, currency, phone numbers with RegEx
+- Build robust selectors anchored on ids/headings
